@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Norns Emulator - PIXEL PERFECT</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto Mono', 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            gap: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .norns-device {
+            background: linear-gradient(145deg, #1a1a1a, #0f0f0f);
+            border: 3px solid #0a0a0a;
+            border-radius: 4px;
+            padding: 20px 30px 25px 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8),
+                        inset 0 1px 0 rgba(255,255,255,0.02);
+            position: relative;
+            width: 590px;
+        }
+
+        .top-controls {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 15px;
+            padding-right: 5px;
+        }
+
+        .screen-container {
+            background: #000;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 0 auto 18px auto;
+            box-shadow: inset 0 3px 15px rgba(0,0,0,0.9),
+                        0 0 0 2px #0a0a0a;
+            border: 2px solid #1a1a1a;
+            width: fit-content;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            width: 512px;
+            height: 256px;
+            image-rendering: pixelated;
+        }
+
+        .bottom-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .button-group-left {
+            display: flex;
+            gap: 18px;
+            padding-left: 5px;
+        }
+
+        .encoder-group-right {
+            display: flex;
+            gap: 22px;
+            padding-right: 5px;
+        }
+
+        .encoder {
+            text-align: center;
+            position: relative;
+        }
+
+        .encoder-wheel {
+            width: 72px;
+            height: 72px;
+            border: 4px solid #0a0a0a;
+            border-radius: 50%;
+            margin: 0 auto 5px;
+            position: relative;
+            cursor: pointer;
+            background: radial-gradient(circle at 35% 35%, #1a1a1a, #000);
+            transition: all 0.08s;
+            box-shadow: 0 5px 12px rgba(0,0,0,0.8),
+                        inset 0 2px 6px rgba(0,0,0,0.6),
+                        inset 0 -1px 3px rgba(255,255,255,0.02);
+        }
+
+        .encoder-wheel:hover {
+            border-color: #1a1a1a;
+        }
+
+        .encoder-wheel:active {
+            transform: scale(0.98);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.9),
+                        inset 0 3px 8px rgba(0,0,0,0.7);
+        }
+
+        .encoder-wheel::before {
+            content: '';
+            position: absolute;
+            width: 3px;
+            height: 26px;
+            background: linear-gradient(180deg, #fff 0%, #ddd 100%);
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(255,255,255,0.6);
+        }
+
+        .encoder-wheel::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #000;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid #0a0a0a;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .encoder-label {
+            font-size: 9px;
+            color: #444;
+            margin-top: 3px;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        .button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 3px solid #0a0a0a;
+            cursor: pointer;
+            font-size: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.08s;
+            user-select: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.6),
+                        inset 0 2px 4px rgba(255,255,255,0.15);
+            position: relative;
+        }
+
+        .button.white {
+            background: radial-gradient(circle at 40% 40%, #f0f0f0, #c0c0c0);
+        }
+
+        .button.white:hover {
+            border-color: #1a1a1a;
+        }
+
+        .button.white:active {
+            background: radial-gradient(circle at 40% 40%, #d8d8d8, #a8a8a8);
+            transform: translateY(2px) scale(0.97);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.7),
+                        inset 0 3px 6px rgba(0,0,0,0.25);
+        }
+
+        .button-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .button-label {
+            font-size: 9px;
+            color: #444;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        .screw {
+            position: absolute;
+            width: 9px;
+            height: 9px;
+            background: radial-gradient(circle, #2a2a2a, #0a0a0a);
+            border-radius: 50%;
+            border: 1px solid #000;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.6),
+                        0 1px 2px rgba(255,255,255,0.03);
+        }
+
+        .screw::before {
+            content: '';
+            position: absolute;
+            width: 5px;
+            height: 1px;
+            background: #000;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(45deg);
+        }
+
+        .screw::after {
+            content: '';
+            position: absolute;
+            width: 5px;
+            height: 1px;
+            background: #000;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+        }
+
+        .screw.top-left { top: 10px; left: 10px; }
+        .screw.top-right { top: 10px; right: 10px; }
+        .screw.bottom-left { bottom: 10px; left: 10px; }
+        .screw.bottom-right { bottom: 10px; right: 10px; }
+
+        .editor-panel {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .editor-header h3 {
+            font-size: 18px;
+            color: #fff;
+        }
+
+        .run-button {
+            background: #4a9eff;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .run-button:hover {
+            background: #3a8eef;
+        }
+
+        .run-button:active {
+            transform: scale(0.95);
+        }
+
+        textarea {
+            width: 100%;
+            height: 400px;
+            background: #1a1a1a;
+            color: #4af626;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #888;
+            min-height: 60px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .error {
+            color: #ff4444;
+        }
+
+        .info {
+            color: #4af626;
+        }
+
+        .keyboard-help {
+            margin-top: 30px;
+            padding: 15px 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            font-size: 10px;
+            color: #555;
+            line-height: 1.8;
+            border: 1px solid #1a1a1a;
+        }
+
+        .keyboard-help strong {
+            color: #888;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="norns-device">
+            <div class="screw top-left"></div>
+            <div class="screw top-right"></div>
+            <div class="screw bottom-left"></div>
+            <div class="screw bottom-right"></div>
+
+            <div class="top-controls">
+                <div class="button-wrapper">
+                    <div class="button white" id="k1"></div>
+                    <div class="button-label">K1</div>
+                </div>
+                <div class="encoder">
+                    <div class="encoder-wheel" id="e1"></div>
+                    <div class="encoder-label">E1</div>
+                </div>
+            </div>
+
+            <div class="screen-container">
+                <canvas id="screen" width="512" height="256"></canvas>
+            </div>
+            
+            <div class="bottom-controls">
+                <div class="button-group-left">
+                    <div class="button-wrapper">
+                        <div class="button white" id="k2"></div>
+                        <div class="button-label">K2</div>
+                    </div>
+                    <div class="button-wrapper">
+                        <div class="button white" id="k3"></div>
+                        <div class="button-label">K3</div>
+                    </div>
+                </div>
+                
+                <div class="encoder-group-right">
+                    <div class="encoder">
+                        <div class="encoder-wheel" id="e2"></div>
+                        <div class="encoder-label">E2</div>
+                    </div>
+                    <div class="encoder">
+                        <div class="encoder-wheel" id="e3"></div>
+                        <div class="encoder-label">E3</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="keyboard-help">
+                <strong>Keyboard:</strong><br>
+                Q/W/E = E1/E2/E3 CCW<br>
+                A/S/D = E1/E2/E3 CW<br>
+                1/2/3 = K1/K2/K3
+            </div>
+        </div>
+
+        <div class="editor-panel">
+            <div class="editor-header">
+                <h3>Lua Script</h3>
+                <button class="run-button" id="runButton">▶ Run</button>
+            </div>
+            <textarea id="luaCode">-- Norns Emulator v1.0
+-- WYSIWYG Demo
+-- by Egor Sorokin
+
+local x = 64
+local y = 32
+local brightness = 15
+local angle = 0
+local pulse = 0
+
+function init()
+  print("Norns Emulator Ready!")
+  redraw()
+end
+
+function redraw()
+  screen.clear()
+  
+  -- Corner squares (4x4 pixels each)
+  screen.level(6)
+  screen.rect(4, 4, 4, 4)
+  screen.stroke()
+  
+  screen.rect(120, 4, 4, 4)
+  screen.stroke()
+  
+  screen.rect(4, 56, 4, 4)
+  screen.stroke()
+  
+  screen.rect(120, 56, 4, 4)
+  screen.stroke()
+  
+  -- Title aligned with top squares (y=4)
+  screen.level(15)
+  screen.move(64, 4)
+  screen.text_center("NORNS EMULATOR v1.0")
+  
+  -- Subtitle
+  screen.level(10)
+  screen.move(64, 12)
+  screen.text_center("by Egor Sorokin")
+  
+  -- Animated circle in center
+  screen.level(brightness)
+  screen.circle(x, y, 6 + math.sin(pulse) * 1.5)
+  screen.fill()
+  
+  -- Rotating line from circle
+  local lx = x + math.cos(angle) * 12
+  local ly = y + math.sin(angle) * 12
+  screen.level(10)
+  screen.move(x, y)
+  screen.line(lx, ly)
+  screen.stroke()
+  
+  -- Instructions in TWO ROWS at bottom
+  -- Row 1: Keys (y=50)
+  screen.level(4)
+  screen.move(64, 44)
+  screen.text_center("K2/K3: brightness")
+  
+  -- Row 2: Encoders (y=58)
+  screen.move(64, 52)
+  screen.text_center("E2/E3: move")
+  
+  screen.update()
+end
+
+function enc(n, d)
+  if n == 1 then
+    angle = angle + d * 0.1
+  elseif n == 2 then
+    x = x + d
+    if x < 12 then x = 12 end
+    if x > 116 then x = 116 end
+  elseif n == 3 then
+    y = y + d
+    if y < 20 then y = 20 end
+    if y > 48 then y = 48 end
+  end
+  pulse = pulse + 0.1
+  redraw()
+end
+
+function key(n, z)
+  if z == 1 then
+    if n == 2 then
+      brightness = brightness - 3
+      if brightness < 0 then brightness = 0 end
+    elseif n == 3 then
+      brightness = brightness + 3
+      if brightness > 15 then brightness = 15 end
+    end
+    redraw()
+  end
+end
+
+init()</textarea>
+            <div class="status" id="status">
+                <span class="info">Ready. Click "Run" to start.</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js"></script>
+    <script>
+        class NornsEngine {
+            constructor() {
+                this.name = null;
+                this.params = {};
+            }
+            setName(name) {
+                this.name = name;
+                console.log(`[Engine] ${name}`);
+            }
+            setParam(paramName, value) {
+                this.params[paramName] = value;
+            }
+        }
+        
+        class NornsEmulator {
+            constructor() {
+                this.canvas = document.getElementById('screen');
+                this.ctx = this.canvas.getContext('2d');
+                
+                this.scale = 4;
+                
+                this.engine = new NornsEngine();
+                this.currentLevel = 15;
+                this.currentX = 0;
+                this.currentY = 0;
+                this.currentFont = 1;
+                
+                this.ctx.imageSmoothingEnabled = false;
+                
+                this.fonts = {
+                    1: '32px monospace',
+                    2: '32px monospace',
+                    3: '40px monospace',
+                    4: '48px monospace',
+                    5: '56px monospace'
+                };
+                
+                this.L = null;
+                this.setupControls();
+                this.setupKeyboard();
+                this.initLua();
+                this.screenClear();
+            }
+
+            initLua() {
+                this.L = fengari.L;
+                
+                const screen = {
+                    clear: () => this.screenClear(),
+                    update: () => {},
+                    move: (x, y) => this.screenMove(x, y),
+                    line: (x, y) => this.screenLine(x, y),
+                    circle: (x, y, r) => this.screenCircle(x, y, r),
+                    rect: (x, y, w, h) => this.screenRect(x, y, w, h),
+                    fill: () => this.screenFill(),
+                    stroke: () => this.screenStroke(),
+                    level: (l) => this.screenLevel(l),
+                    text: (str) => this.screenText(str),
+                    text_center: (str) => this.screenTextCenter(str),
+                    text_right: (str) => this.screenTextRight(str),
+                    pixel: (x, y) => this.screenPixel(x, y),
+                    line_width: (w) => { this.ctx.lineWidth = w * this.scale; },
+                    aa: () => {},
+                    font_face: (i) => { this.currentFont = i; },
+                    font_size: (s) => { this.fonts[this.currentFont] = `${s * this.scale}px monospace`; },
+                    curve: () => {},
+                    close: () => { this.ctx.closePath(); },
+                    arc: (x, y, r, a1, a2) => this.screenArc(x, y, r, a1, a2)
+                };
+                
+                const engineProxy = new Proxy({}, {
+                    get: (target, prop) => {
+                        if (prop === 'name') return { set: (n) => this.engine.setName(n) };
+                        return (v) => this.engine.setParam(prop, v);
+                    },
+                    set: (target, prop, value) => {
+                        if (prop === 'name') this.engine.setName(value);
+                        return true;
+                    }
+                });
+                
+                fengari.load(`
+                    screen = {}
+                    engine = {}
+                    print = function(...) js.global:luaPrint(table.concat({...}, " ")) end
+                `)();
+                
+                for (let key in screen) {
+                    window['lua_screen_' + key] = screen[key];
+                    fengari.load(`screen.${key} = function(...) return js.global:lua_screen_${key}(...) end`)();
+                }
+                
+                window.lua_engine_proxy = engineProxy;
+                fengari.load(`
+                    engine = setmetatable({}, {
+                        __index = function(t, k)
+                            if k == "name" then return nil end
+                            return function(v) js.global.lua_engine_proxy[k](v) end
+                        end,
+                        __newindex = function(t, k, v)
+                            if k == "name" then js.global.lua_engine_proxy.name = v end
+                        end
+                    })
+                `)();
+            }
+
+            screenClear() {
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, 512, 256);
+                this.ctx.beginPath();
+            }
+
+            screenMove(x, y) {
+                this.currentX = x * this.scale;
+                this.currentY = y * this.scale;
+                this.ctx.moveTo(this.currentX, this.currentY);
+            }
+
+            screenLine(x, y) {
+                x *= this.scale;
+                y *= this.scale;
+                this.ctx.lineTo(x, y);
+                this.currentX = x;
+                this.currentY = y;
+            }
+
+            screenCircle(x, y, r) {
+                this.ctx.beginPath();
+                this.ctx.arc(x * this.scale, y * this.scale, r * this.scale, 0, Math.PI * 2);
+            }
+
+            screenArc(x, y, r, a1, a2) {
+                this.ctx.beginPath();
+                this.ctx.arc(x * this.scale, y * this.scale, r * this.scale, a1 - Math.PI/2, a2 - Math.PI/2);
+            }
+
+            screenRect(x, y, w, h) {
+                this.ctx.beginPath();
+                this.ctx.rect(x * this.scale, y * this.scale, w * this.scale, h * this.scale);
+            }
+
+            screenFill() {
+                const b = Math.floor((this.currentLevel / 15) * 255);
+                this.ctx.fillStyle = `rgb(${b}, ${b}, ${b})`;
+                this.ctx.fill();
+            }
+
+            screenStroke() {
+                const b = Math.floor((this.currentLevel / 15) * 255);
+                this.ctx.strokeStyle = `rgb(${b}, ${b}, ${b})`;
+                this.ctx.stroke();
+            }
+
+            screenLevel(level) {
+                this.currentLevel = Math.max(0, Math.min(15, level));
+            }
+
+            screenText(str) {
+                const b = Math.floor((this.currentLevel / 15) * 255);
+                this.ctx.fillStyle = `rgb(${b}, ${b}, ${b})`;
+                this.ctx.font = this.fonts[this.currentFont];
+                this.ctx.textBaseline = 'top';
+                this.ctx.textAlign = 'left';
+                this.ctx.fillText(String(str), this.currentX, this.currentY);
+            }
+
+            screenTextCenter(str) {
+                const b = Math.floor((this.currentLevel / 15) * 255);
+                this.ctx.fillStyle = `rgb(${b}, ${b}, ${b})`;
+                this.ctx.font = this.fonts[this.currentFont];
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'top';
+                this.ctx.fillText(String(str), this.currentX, this.currentY);
+            }
+
+            screenTextRight(str) {
+                const b = Math.floor((this.currentLevel / 15) * 255);
+                this.ctx.fillStyle = `rgb(${b}, ${b}, ${b})`;
+                this.ctx.font = this.fonts[this.currentFont];
+                this.ctx.textAlign = 'right';
+                this.ctx.textBaseline = 'top';
+                this.ctx.fillText(String(str), this.currentX, this.currentY);
+            }
+
+            screenPixel(x, y) {
+                const b = Math.floor((this.currentLevel / 15) * 255);
+                this.ctx.fillStyle = `rgb(${b}, ${b}, ${b})`;
+                this.ctx.fillRect(x * this.scale, y * this.scale, this.scale, this.scale);
+            }
+
+            setupControls() {
+                ['e1', 'e2', 'e3'].forEach((id, i) => {
+                    const enc = document.getElementById(id);
+                    let startY = 0, drag = false;
+                    enc.addEventListener('mousedown', (e) => { drag = true; startY = e.clientY; });
+                    document.addEventListener('mousemove', (e) => {
+                        if (!drag) return;
+                        const d = Math.floor((startY - e.clientY) / 5);
+                        if (d !== 0) { startY = e.clientY; this.callLuaEnc(i + 1, d); }
+                    });
+                    document.addEventListener('mouseup', () => { drag = false; });
+                    enc.addEventListener('wheel', (e) => {
+                        e.preventDefault();
+                        this.callLuaEnc(i + 1, e.deltaY > 0 ? -1 : 1);
+                    });
+                });
+
+                ['k1', 'k2', 'k3'].forEach((id, i) => {
+                    const btn = document.getElementById(id);
+                    btn.addEventListener('mousedown', () => this.callLuaKey(i + 1, 1));
+                    btn.addEventListener('mouseup', () => this.callLuaKey(i + 1, 0));
+                });
+            }
+
+            setupKeyboard() {
+                document.addEventListener('keydown', (e) => {
+                    const k = e.key.toLowerCase();
+                    if (k === 'q') this.callLuaEnc(1, -1);
+                    if (k === 'w') this.callLuaEnc(2, -1);
+                    if (k === 'e') this.callLuaEnc(3, -1);
+                    if (k === 'a') this.callLuaEnc(1, 1);
+                    if (k === 's') this.callLuaEnc(2, 1);
+                    if (k === 'd') this.callLuaEnc(3, 1);
+                    if (k === '1') this.callLuaKey(1, 1);
+                    if (k === '2') this.callLuaKey(2, 1);
+                    if (k === '3') this.callLuaKey(3, 1);
+                });
+                document.addEventListener('keyup', (e) => {
+                    const k = e.key.toLowerCase();
+                    if (k === '1') this.callLuaKey(1, 0);
+                    if (k === '2') this.callLuaKey(2, 0);
+                    if (k === '3') this.callLuaKey(3, 0);
+                });
+            }
+
+            callLuaEnc(n, d) {
+                try { fengari.load(`if enc then enc(${n}, ${d}) end`)(); }
+                catch (e) { console.error(e); }
+            }
+
+            callLuaKey(n, z) {
+                try { fengari.load(`if key then key(${n}, ${z}) end`)(); }
+                catch (e) { console.error(e); }
+            }
+
+            runScript(code) {
+                try {
+                    fengari.load(code)();
+                    this.showStatus('Loaded: ' + (this.engine.name || 'Script'));
+                } catch (e) {
+                    this.showStatus('Error: ' + e.message);
+                }
+            }
+
+            showStatus(msg) {
+                document.getElementById('status').innerHTML = `<span class="info">${msg}</span>`;
+            }
+        }
+
+        window.luaPrint = function(str) {
+            console.log('[Lua]', str);
+            norns.showStatus(str);
+        };
+
+        let norns;
+        window.addEventListener('load', () => {
+            norns = new NornsEmulator();
+            document.getElementById('runButton').addEventListener('click', () => {
+                norns.runScript(document.getElementById('luaCode').value);
+            });
+            setTimeout(() => document.getElementById('runButton').click(), 500);
+        });
+    </script>
+</body>
+</html>
