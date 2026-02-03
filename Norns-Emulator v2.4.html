@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Norns WYSIWYG Emulator v2.3 - PIXEL PERFECT</title>
+    <link href="https://fonts.cdnfonts.com/css/04b03" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #0a0a0a;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            gap: 30px;
+            padding: 20px;
+            min-height: 100vh;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .norns {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            border-radius: 8px;
+            padding: 20px 25px;
+            width: 570px;
+            height: 555px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            border: 2px solid #2a2a2a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header {
+            text-align: center;
+            color: #555;
+            font-size: 10px;
+            margin-bottom: 15px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        canvas {
+            background: #000;
+            border: 2px solid #333;
+            display: block;
+            margin: 15px auto;
+            width: 512px; 
+            height: 256px;
+            image-rendering: pixelated;
+        }
+
+        .ctrl-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            width: 512px;
+        }
+
+        .btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #666, #222);
+            border: 2px solid #444;
+            cursor: pointer;
+            color: #888;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .btn:active { background: #333; transform: scale(0.95); }
+
+        .enc {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, #1a1a1a, #444, #1a1a1a);
+            border: 3px solid #333;
+            cursor: ns-resize;
+            position: relative;
+        }
+
+        .enc::before {
+            content: '';
+            position: absolute;
+            width: 3px;
+            height: 20px;
+            background: #fff;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .editor { flex: 1; max-width: 600px; }
+        
+        textarea {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            color: #0f0;
+            border: 1px solid #333;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+            tab-size: 2;
+            line-height: 1.4;
+        }
+
+        .run {
+            background: #04d;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            cursor: pointer;
+            float: right;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+        .run:hover { background: #26f; }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background: #000;
+            border: 1px solid #333;
+            min-height: 100px;
+            font-size: 12px;
+            color: #666;
+            overflow-y: auto;
+            max-height: 150px;
+            font-family: monospace;
+        }
+        .error { color: #f44; }
+        .ok { color: #4f4; }
+        
+        .key-hint {
+            margin-top: 10px;
+            font-size: 10px;
+            color: #444;
+            text-align: center;
+            width: 512px;
+        }
+    </style>
+</head>
+<body>
+    <div class="norns">
+        <div class="header">monome norns</div>
+        <div class="ctrl-row" style="justify-content: space-between;">
+            <div class="btn" id="k1">K1</div>
+            <div class="enc" id="e1"></div>
+        </div>
+        
+        <canvas id="screen" width="128" height="64"></canvas>
+        
+        <div class="ctrl-row">
+            <div style="display:flex; gap:10px;">
+                <div class="btn" id="k2">K2</div>
+                <div class="btn" id="k3">K3</div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <div class="enc" id="e2"></div>
+                <div class="enc" id="e3"></div>
+            </div>
+        </div>
+        <div class="key-hint">
+            Keys: 1/2/3 = K1/K2/K3 | Q/A = E1, W/S = E2, E/D = E3
+        </div>
+    </div>
+
+    <div class="editor">
+        <button class="run" onclick="run()">▶ RUN</button>
+        <h3 style="margin-bottom:10px; color: #fff;">Script</h3>
+        <textarea id="code">-- Paste your norns script here</textarea>
+        <div class="status" id="status">Initializing...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js"></script>
+    <script>
+        const canvas = document.getElementById('screen');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        
+        ctx.imageSmoothingEnabled = false;
+        
+        const GAMMA = [0, 8, 16, 24, 32, 48, 64, 80, 96, 120, 144, 168, 192, 216, 240, 255];
+        let currentLevel = 15;
+        let curX = 0, curY = 0;
+        let pathX = 0, pathY = 0;
+        let circleData = null;
+        const screenFont = '8px "04b03", monospace';
+        const TEXT_Y_OFFSET = -4;  // Calibration offset for 04b03 font
+        const TEXT_X_OFFSET = 1;  // Horizontal offset for text alignment
+
+        function log(msg, cls) {
+            const s = document.getElementById('status');
+            const div = document.createElement('div');
+            div.className = cls || 'info';
+            div.textContent = msg;
+            s.appendChild(div);
+            s.scrollTop = s.scrollHeight;
+        }
+
+        function clearScreen() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, 128, 64);
+            circleData = null;
+        }
+
+        function setLevel(l) {
+            currentLevel = Math.max(0, Math.min(15, l | 0));
+            const v = GAMMA[currentLevel];
+            ctx.fillStyle = `rgb(${v},${v},${v})`;
+            ctx.strokeStyle = `rgb(${v},${v},${v})`;
+        }
+
+        function initLua() {
+            const api = `
+                screen = {}
+                function screen.clear() js.global:screenClear() end
+                function screen.update() end
+                function screen.move(x, y) js.global:setPos(math.floor(x), math.floor(y)) end
+                function screen.level(l) js.global:setLevel(l) end
+                function screen.text(s) js.global:drawText(tostring(s)) end
+                function screen.text_center(s) js.global:drawTextCenter(tostring(s)) end
+                function screen.text_right(s) js.global:drawTextRight(tostring(s)) end
+                function screen.rect(x, y, w, h) js.global:setRect(x, y, w, h) end
+                function screen.fill() js.global:fillRect() end
+                function screen.stroke() js.global:strokeShape() end
+                function screen.line(x, y) js.global:drawLine(x, y) end
+                function screen.line_rel(x, y) js.global:drawLineRel(x, y) end
+                function screen.pixel(x, y) js.global:drawPixel(x, y) end
+                function screen.circle(x, y, r) js.global:setCircle(x, y, r) end
+                function screen.arc() end
+                function screen.curve() end
+                function screen.font_size() end
+                function screen.font_face() end
+                function screen.aa() end
+                function screen.line_width() end
+                function screen.line_cap() end
+                function screen.line_join() end
+                function screen.miter_limit() end
+                
+                util = {}
+                function util.clamp(n, min, max) return math.max(min, math.min(max, n)) end
+                function util.round(n) return math.floor(n + 0.5) end
+                
+                clock = {}
+                function clock.run(fn) 
+                    local ok, err = pcall(fn)
+                    if not ok then js.global:luaError(err) end
+                    return fn
+                end
+                function clock.sleep() end
+                function clock.cancel() end
+                function clock.stop() end
+                
+                engine = {}
+                params = {data={}, add=function()end, set=function()end, get=function()return 0 end}
+                midi = {connect=function()return{}end}
+                metro = {init=function()return{start=function()end,stop=function()end}end}
+                tab = {count=function(t)local c=0 for _ in pairs(t) do c=c+1 end return c end}
+                
+                function print(...) 
+                    local args={...}
+                    local strs={}
+                    for i=1,#args do strs[i]=tostring(args[i]) end
+                    js.global:luaPrint(table.concat(strs," "))
+                end
+            `;
+            fengari.load(api)();
+        }
+
+        window.screenClear = clearScreen;
+        window.setLevel = setLevel;
+        
+        window.setPos = function(x, y) { 
+            curX = x; curY = y;
+            pathX = x; pathY = y;
+        };
+        
+        window._rect = null;
+        window.setRect = function(x, y, w, h) { 
+            window._rect = {x: math.floor(x), y: Math.floor(y), w: Math.floor(w), h: Math.floor(h)}; 
+        };
+        
+        window.fillRect = function() {
+            if (window._rect) ctx.fillRect(window._rect.x, window._rect.y, window._rect.w, window._rect.h);
+        };
+        
+        window.strokeShape = function() {
+            if (circleData) {
+                ctx.beginPath();
+                ctx.arc(circleData.x, circleData.y, circleData.r, 0, Math.PI*2);
+                ctx.stroke();
+            } else if (window._rect) {
+                ctx.strokeRect(window._rect.x+0.5, window._rect.y+0.5, window._rect.w-1, window._rect.h-1);
+            }
+        };
+        
+        window.setCircle = function(x, y, r) {
+            circleData = {x: Math.floor(x), y: Math.floor(y), r: Math.floor(r)};
+        };
+        
+        window.drawPixel = function(x, y) { 
+            x=Math.floor(x); y=Math.floor(y);
+            if (x>=0 && x<128 && y>=0 && y<64) ctx.fillRect(x, y, 1, 1);
+        };
+        
+        window.drawLine = function(x, y) {
+            let x0=Math.floor(pathX), y0=Math.floor(pathY);
+            let x1=Math.floor(x), y1=Math.floor(y);
+            let dx=Math.abs(x1-x0), dy=Math.abs(y1-y0);
+            let sx=(x0<x1)?1:-1, sy=(y0<y1)?1:-1;
+            let err=dx-dy;
+            
+            while(true) {
+                window.drawPixel(x0, y0);
+                if(x0==x1 && y0==y1) break;
+                let e2=2*err;
+                if(e2>-dy){err-=dy; x0+=sx;}
+                if(e2<dx){err+=dx; y0+=sy;}
+            }
+            pathX=x; pathY=y; curX=x; curY=y;
+        };
+        
+        window.drawLineRel = function(x, y) {
+            window.drawLine(pathX+x, pathY+y);
+        };
+        
+        window.drawText = function(s) {
+            ctx.font = screenFont;
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'left';
+            ctx.fillText(s, curX + TEXT_X_OFFSET, curY + 6 + TEXT_Y_OFFSET);
+        };
+        
+        window.drawTextCenter = function(s) {
+            ctx.font = screenFont;
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'center';
+            ctx.fillText(s, curX + TEXT_X_OFFSET, curY + 6 + TEXT_Y_OFFSET);
+            ctx.textAlign = 'left';
+        };
+        
+        window.drawTextRight = function(s) {
+            ctx.font = screenFont;
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'right';
+            ctx.fillText(s, curX + TEXT_X_OFFSET, curY + 6 + TEXT_Y_OFFSET);
+            ctx.textAlign = 'left';
+        };
+        
+        window.luaPrint = function(s) { log(s, "ok"); };
+        window.luaError = function(s) { log(s, "error"); };
+
+        function run() {
+            initLua();
+            clearScreen();
+            window._rect = null;
+            circleData = null;
+            
+            const code = document.getElementById('code').value;
+            log("Running...", "info");
+            
+            try {
+                fengari.load(code)();
+                log("OK", "ok");
+            } catch(e) {
+                log("Error: " + (e.message || e), "error");
+            }
+        }
+
+        // MOUSE CONTROLS
+        ['e1','e2','e3'].forEach((id, idx) => {
+            const el = document.getElementById(id);
+            let lastY = 0;
+            
+            el.addEventListener('mousedown', e => {
+                lastY = e.clientY;
+                const onMove = ev => {
+                    const delta = Math.floor((lastY - ev.clientY) / 3);
+                    if (delta !== 0) {
+                        lastY = ev.clientY;
+                        try { fengari.load(`if type(enc)=="function" then enc(${idx+1}, ${delta}) end`)(); } catch(e){}
+                    }
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', () => document.removeEventListener('mousemove', onMove), {once:true});
+            });
+            
+            el.addEventListener('wheel', e => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -1 : 1;
+                try { fengari.load(`if type(enc)=="function" then enc(${idx+1}, ${delta}) end`)(); } catch(e){}
+            });
+        });
+
+        ['k1','k2','k3'].forEach((id, idx) => {
+            const btn = document.getElementById(id);
+            btn.addEventListener('mousedown', () => {
+                try { fengari.load(`if type(key)=="function" then key(${idx+1}, 1) end`)(); } catch(e){}
+            });
+            btn.addEventListener('mouseup', () => {
+                try { fengari.load(`if type(key)=="function" then key(${idx+1}, 0) end`)(); } catch(e){}
+            });
+        });
+
+        // KEYBOARD CONTROLS
+        document.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            
+            // Encoders: Q/A=E1, W/S=E2, E/D=E3
+            if (k === 'q') { e.preventDefault(); try { fengari.load('if type(enc)=="function" then enc(1, -1) end')(); } catch(e) {} }
+            else if (k === 'a') { e.preventDefault(); try { fengari.load('if type(enc)=="function" then enc(1, 1) end')(); } catch(e) {} }
+            else if (k === 'w') { e.preventDefault(); try { fengari.load('if type(enc)=="function" then enc(2, -1) end')(); } catch(e) {} }
+            else if (k === 's') { e.preventDefault(); try { fengari.load('if type(enc)=="function" then enc(2, 1) end')(); } catch(e) {} }
+            else if (k === 'e') { e.preventDefault(); try { fengari.load('if type(enc)=="function" then enc(3, -1) end')(); } catch(e) {} }
+            else if (k === 'd') { e.preventDefault(); try { fengari.load('if type(enc)=="function" then enc(3, 1) end')(); } catch(e) {} }
+            
+            // Keys: 1,2,3 = K1,K2,K3
+            else if (k === '1') { e.preventDefault(); try { fengari.load('if type(key)=="function" then key(1, 1) end')(); } catch(e) {} }
+            else if (k === '2') { e.preventDefault(); try { fengari.load('if type(key)=="function" then key(2, 1) end')(); } catch(e) {} }
+            else if (k === '3') { e.preventDefault(); try { fengari.load('if type(key)=="function" then key(3, 1) end')(); } catch(e) {} }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === '1') { e.preventDefault(); try { fengari.load('if type(key)=="function" then key(1, 0) end')(); } catch(e) {} }
+            else if (k === '2') { e.preventDefault(); try { fengari.load('if type(key)=="function" then key(2, 0) end')(); } catch(e) {} }
+            else if (k === '3') { e.preventDefault(); try { fengari.load('if type(key)=="function" then key(3, 0) end')(); } catch(e) {} }
+        });
+
+        // Load font and init
+        document.fonts.load('8px "04b03"').then(() => {
+            log("04B_03 font loaded - PIXEL PERFECT", "ok");
+            document.getElementById('code').value = `-- Norns WYSIWYG Emulator v2.4
+-- Paste your script here
+
+function init()
+  redraw()
+end
+
+function redraw()
+  screen.clear()
+  
+  screen.level(15)
+  screen.move(64, 26)
+  screen.text_center("WYSIWYG emulator v2.4")
+  
+  screen.level(8)
+  screen.move(64, 40)
+  screen.text_center("by Egor Sorokin, 2026")
+  
+  screen.update()
+end
+
+init()`;
+            run();
+        });
+    </script>
+</body>
+</html>
